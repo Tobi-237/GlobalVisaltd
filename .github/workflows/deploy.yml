@@ -1,0 +1,57 @@
+name: Deploy J2EE to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  VPS_IP: "129.0.76.33"          # Remplacez par l'IP de votre VPS
+  SSH_USER: "dell 7"      # Ex: ubuntu, root
+  TOMCAT_DIR: "C:/Users/DELL 7/eclipse-workspace/GlobalVisa/src/main" # Chemin vers webapps
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1: Récupération du code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Étape 2: Compilation Java
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Compile Java classes
+        run: |
+          mkdir -p WEB-INF/classes
+          javac -d WEB-INF/classes src/com//*.java
+
+      # Étape 3: Création du fichier .war
+      - name: Globalvisaltd.war
+        run: |
+          jar -cvf Globalvisaltd.war *
+
+      # Étape 4: Déploiement sur VPS via SCP
+      - name: Deploy to VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ env.VPS_IP }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "Globalvisaltd.war"
+          target: ${{ env.TOMCAT_DIR }}
+
+      # Étape 5: Redémarrage de Tomcat
+      - name: Restart Tomcat
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.VPS_IP }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            sudo systemctl restart tomcat
+            echo "Déploiement réussi !"
