@@ -1,1 +1,66 @@
 
+name: Deploy J2EE to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  VPS_IP: "129.0.76.33"          # IP de votre VPS
+  SSH_USER: "dell7"              # Utilisateur SSH (sans espace)
+  TOMCAT_WEBAPPS_DIR: "/opt/tomcat/webapps" # Chemin standard pour Tomcat
+  PROJECT_DIR: "GlobalVisa"      # Nom de votre projet
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1: Récupération du code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Étape 2: Configuration Java
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # Étape 3: Compilation Java
+      - name: Compile Java classes
+        run: |
+          mkdir -p WebContent/WEB-INF/classes
+          javac -cp "WebContent/WEB-INF/lib/*" -d WebContent/WEB-INF/classes src/com/globalvisa/*.java
+
+      # Étape 4: Création du fichier WAR
+      - name: Create WAR file
+        run: |
+          cd WebContent
+          jar -cvf ../Globalvisaltd.war *
+          cd ..
+          ls -lh Globalvisaltd.war
+
+      # Étape 5: Déploiement sur VPS
+      - name: Deploy to VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ env.VPS_IP }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "Globalvisaltd.war"
+          target: ${{ env.TOMCAT_WEBAPPS_DIR }}
+          strip_components: 1
+
+      # Étape 6: Redémarrage de Tomcat
+      - name: Restart Tomcat
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.VPS_IP }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            sudo systemctl stop tomcat
+            sleep 5
+            sudo systemctl start tomcat
+            echo "Application déployée avec succès sur http://${{ env.VPS_IP }}:8080/Globalvisaltd"
